@@ -1,89 +1,49 @@
-import json
 from time import sleep
-# import requests
+from confluent_kafka import Producer
+from os.path import abspath
+import os
+from uuid import uuid4
+import sys
 
-# from bs4 import BeautifulSoup
-from kafka import KafkaConsumer, KafkaProducer
+from util import log
 
-def fetch_raw(recipe_url):
-    html = None
-    print('Processing..{}'.format(recipe_url))
-    try:
-        r = requests.get(recipe_url, headers=headers)
-        if r.status_code == 200:
-            html = r.text
-    except Exception as ex:
-        print('Exception while accessing raw html')
-        print(str(ex))
-    finally:
-        return html.strip()
+import pandas as pd
+from random import choice
 
+from pprint import pprint
 
-def get_recipes():
-    recipies = []
+def fetch_dataset():
+    source_file = abspath('./data/preprocessed_data.csv')
+    return pd.read_csv(source_file)
 
-    if not 0:
-        return ["my_first_message", "my_second_message"]
-
-    salad_url = 'https://www.allrecipes.com/recipes/96/salad/'
-    url = 'https://www.allrecipes.com/recipes/96/salad/'
-    print('Accessing list')
-
-    try:
-        r = requests.get(url, headers=headers)
-        if r.status_code == 200:
-            html = r.text
-            soup = BeautifulSoup(html, 'lxml')
-            links = soup.select('.fixed-recipe-card__h3 a')
-            idx = 0
-            for link in links:
-
-                sleep(2)
-                recipe = fetch_raw(link['href'])
-                recipies.append(recipe)
-                idx += 1
-                if idx > 2:
-                    break
-    except Exception as ex:
-        print('Exception in get_recipes')
-        print(str(ex))
-    finally:
-        return recipies
-
-def publish_message(producer_instance, topic_name, key, value):
-    try:
-        key_bytes = bytes(key, encoding='utf-8')
-        value_bytes = bytes(value, encoding='utf-8')
-        producer_instance.send(topic_name, key=key_bytes, value=value_bytes)
-        producer_instance.flush()
-        print('Message published successfully.')
-    except Exception as ex:
-        print('Exception in publishing message')
-        print(str(ex))
+def get_random_row(dataset_df: pd.DataFrame) -> pd.DataFrame:
+    return dataset_df.sample(n=1)
 
 
-def connect_kafka_producer():
-    _producer = None
-    try:
-        _producer = KafkaProducer(bootstrap_servers=['localhost:19092'], api_version=(0, 10))
-    except Exception as ex:
-        print('Exception while connecting Kafka')
-        print(str(ex))
-    finally:
-        return _producer
+# acked is called when the message is delivered
+def acked(err, msg):
+    if err is not None:
+        log("Failed to deliver message: {0}: {1}".format(msg.value(), err.str()))
+    else:
+        log("Message produced and delivered: {0}".format(msg.value()))
+
+
+def main():
+    env_var_key = "KAFKA_BROKERS"
+    kafka_brokers = os.environ[env_var_key]
+    producer = Producer({'bootstrap.servers': kafka_brokers})
+
+    topic = "UFC"
+    dataset = fetch_dataset()
+
+    keys = ["my_key"+ str(uuid4()) for _ in range(5)]
+
+    while True:
+        row = get_random_row(dataset)
+        row_json = row.to_json()
+        key = choice(keys)
+        producer.produce(topic, key=key, value=row_json.encode(), callback=acked)
 
 
 if __name__ == '__main__':
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.181 Safari/537.36',
-        'Pragma': 'no-cache'
-    }
-
-    all_recipes = get_recipes()
-    if len(all_recipes) > 0:
-        kafka_producer = connect_kafka_producer()
-        for recipe in all_recipes:
-            publish_message(kafka_producer, 'raw_recipes', 'raw', recipe.strip())
-
-        if kafka_producer is not None:
-            kafka_producer.close()
+    main()

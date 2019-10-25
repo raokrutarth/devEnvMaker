@@ -1,5 +1,6 @@
----
-version: '2'
+
+
+version: '2.2'
 services:
   zookeeper-1:
     image: confluentinc/cp-zookeeper:latest
@@ -81,3 +82,34 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:39092
     extra_hosts:
       - "moby:127.0.0.1"
+
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile-python
+    network_mode: host
+    depends_on:
+      - kafka-3
+      - kafka-1
+      - kafka-2
+    environment:
+      KAFKA_BROKERS: localhost:39092,localhost:29092,localhost:19092
+    command: python ./producer.py
+    scale: 5
+    restart: unless-stopped
+
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile-python
+    network_mode: host
+    depends_on:
+      - kafka-3
+      - kafka-1
+      - kafka-2
+    environment:
+      KAFKA_BROKERS: localhost:39092,localhost:29092,localhost:19092
+    command: python ./consumer.py
+
+
+
