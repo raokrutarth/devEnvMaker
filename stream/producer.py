@@ -5,12 +5,20 @@ import os
 from uuid import uuid4
 import sys
 
-from util import log
-
 import pandas as pd
 from random import choice
 
 from pprint import pprint
+
+import logging
+from logging import debug as logDebug
+
+logging.basicConfig(
+    stream=sys.stdout,
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+
 
 def fetch_dataset():
     source_file = abspath('./data/preprocessed_data.csv')
@@ -23,9 +31,9 @@ def get_random_row(dataset_df: pd.DataFrame) -> pd.DataFrame:
 # acked is called when the message is delivered
 def acked(err, msg):
     if err is not None:
-        log("Failed to deliver message: {0}: {1}".format(msg.value(), err.str()))
+        logDebug("Failed to deliver message: {0}: {1}".format(msg.value(), err.str()))
     else:
-        log("Message produced and delivered: {0}".format(msg.value()))
+        logDebug("Message produced and delivered: {0}".format(msg.value()))
 
 
 def main():
